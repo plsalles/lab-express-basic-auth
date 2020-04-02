@@ -10,6 +10,13 @@ const logger       = require('morgan');
 const path         = require('path');
 const session = require('express-session');
 const MongoStore   = require('connect-mongo')(session);
+const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
+const bcrypt = require('bcrypt');
+const ensureLogin = require('connect-ensure-login');
+
+// User model
+const User           = require("./models/user");
 
 
 mongoose
@@ -31,14 +38,56 @@ app.use(logger('dev'));
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
-app.use(session({
-  secret: 'basic-auth-secret',
-  cookie: { maxAge: 60000000 },
-  store: new MongoStore({
-    mongooseConnection: mongoose.connection,
-    ttl: 24 * 60 * 60, // 1 day
-  }),
-}));
+// app.use(session({
+//   secret: 'basic-auth-secret',
+//   cookie: { maxAge: 60000000 },
+//   store: new MongoStore({
+//     mongooseConnection: mongoose.connection,
+//     ttl: 24 * 60 * 60, // 1 day
+//   }),
+// }));
+
+//Initializing Passport
+
+app.use(
+  session({
+    secret: 'our-passport-local-strategy-app',
+    resave: true,
+    saveUninitialized: true
+  })
+);
+
+passport.serializeUser((user, callback) => {
+  callback(null, user._id);
+});
+
+passport.deserializeUser((id, callback) => {
+  User.findById(id)
+    .then(user => {
+      callback(null, user);
+    })
+    .catch(error => {
+      callback(error);
+    });
+});
+
+passport.use(
+  new LocalStrategy((username, password, callback) => {
+    User.findOne({ username })
+      .then(user => {
+        if (!user || !bcrypt.compareSync(password, user.password)) {
+          return callback(null, false, { message: 'Incorrect username or password' });
+        }
+        callback(null, user);
+      })
+      .catch(error => {
+        callback(error);
+      });
+  })
+);
+
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Express View engine setup
 
@@ -64,18 +113,21 @@ app.locals.title = 'Express - Generated with IronGenerator';
 const index = require('./routes/index');
 app.use('/', index);
 
-// private route middleware
-app.use((req, res, next) => {
-  if (req.session.loggedUser) {
-    next();
-    return;
-  }
+// // private route middleware
+// app.use((req, res, next) => {
+//   if (req.session.loggedUser) {
+//     next();
+//     return;
+//   }
 
-  res.redirect('/login');
-});
+//   res.redirect('/login');
+// });
 
 const secret = require('./routes/secret');
 app.use('/', secret);
 
+app.get('/secret', ensureLogin.ensureLoggedIn(), (req, res) => {
+  res.render('secret', { user: req.user });
+});
 
 module.exports = app;

@@ -1,6 +1,8 @@
 const express = require('express');
 const router  = express.Router();
 const bcrypt = require('bcrypt');
+const passport = require('passport');
+const ensureLogin = require('connect-ensure-login');
 
 // User model
 const User           = require("../models/user");
@@ -48,41 +50,58 @@ router.get('/login', (req, res, next) => {
 
 });
 
-router.post('/login', async (req, res, next) => {
-  try {
-    const {username, password} = req.body;
-    console.log(req.body)
-    if(username === '' || password === ''){
-      res.render('login', {errorMessage: 'Please provide a valid user and password'});
-      return;
-      }   
-    const user = await User.findOne({username: username});
-    if(!user){
-      res.render('login', {errorMessage: 'Invalid user or password'});
-    }
+// router.post('/login', async (req, res, next) => {
+//   try {
+//     const {username, password} = req.body;
+//     console.log(req.body)
+//     if(username === '' || password === ''){
+//       res.render('login', {errorMessage: 'Please provide a valid user and password'});
+//       return;
+//       }   
+//     const user = await User.findOne({username: username});
+//     if(!user){
+//       res.render('login', {errorMessage: 'Invalid user or password'});
+//     }
 
-    const isPasswordValid = bcrypt.compareSync(password, user.password);
-    if (!isPasswordValid){
-      res.render('login', {errorMessage: 'Invalid user or password'});
-      return;
-    }
+//     const isPasswordValid = bcrypt.compareSync(password, user.password);
+//     if (!isPasswordValid){
+//       res.render('login', {errorMessage: 'Invalid user or password'});
+//       return;
+//     }
 
-    req.session.loggedUser = user;
-    console.log(req.session);
-    res.render('index');
+//     req.session.loggedUser = user;
+//     console.log(req.session);
+//     res.render('index');
 
-  } catch (error) {
-    throw new Error(error);
-  }
+//   } catch (error) {
+//     throw new Error(error);
+//   }
+// });
+
+router.post(
+  '/login',
+  passport.authenticate('local', {
+    successRedirect: '/',
+    failureRedirect: '/login',
+    failureFlash: true,
+    passReqToCallback: true
+  })
+);
+
+// router.get('/logout', (req, res, next) => {
+//   console.log(req.session)
+//   req.session.destroy((err) => {
+//     res.redirect('/');
+
+//   });
+//   console.log(req.session)
+// });
+
+router.get('/logout', (req, res) => {
+  req.logout();
+  res.redirect('/');
 });
 
-router.get('/logout', (req, res, next) => {
-  console.log(req.session)
-  req.session.destroy((err) => {
-    res.redirect('/');
 
-  });
-  console.log(req.session)
-});
 
 module.exports = router;
